@@ -2,15 +2,50 @@ import express from "express";
 import {
   cancelLeave,
   changeLeaveStatus,
+  checkLeaveBalance,
   getManagerLeaveRequests,
   submitLeave,
 } from "../controllers/leaveController.js";
+import {
+  authenticate,
+  authorize,
+  checkOwnership,
+} from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/request", submitLeave);
-router.get("/manager/leaves/:manager_id", getManagerLeaveRequests);
-router.post("/status/:leave_req_id", changeLeaveStatus);
-router.post("/cancel/:leave_req_id", cancelLeave);
+router.post(
+  "/request",
+  authenticate,
+  authorize("INTERN", "EMPLOYEE", "SENIOR_MANAGER", "MANAGER"),
+  submitLeave
+);
+router.get(
+  "/manager/leaves/:emp_id",
+
+  authenticate,
+  authorize("SENIOR_MANAGER", "MANAGER"),
+  checkOwnership,
+
+  getManagerLeaveRequests
+);
+router.patch(
+  "/status/:emp_id",
+  authenticate,
+  authorize("SENIOR_MANAGER", "MANAGER"),
+  changeLeaveStatus
+);
+router.post(
+  "/cancel/:emp_id",
+  authenticate,
+  authorize("INTERN", "EMPLOYEE", "SENIOR_MANAGER", "MANAGER"),
+  cancelLeave
+);
+router.get(
+  "/balance/:emp_id",
+  authenticate,
+  authorize("INTERN", "EMPLOYEE", "SENIOR_MANAGER", "MANAGER"),
+  checkLeaveBalance
+);
 
 export default router;

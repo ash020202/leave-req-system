@@ -1,8 +1,9 @@
 import {
   cancelLeaveHelper,
-  getEmployeeDetails,
+  findEmpById,
   getLeaveRequests,
   insertLeaveRequest,
+  leaveBalanceHelper,
   leaveReqApproval,
   updateLeaveBalance,
 } from "../utils/Helper.js";
@@ -11,14 +12,18 @@ export const submitLeave = async (req, res) => {
   const { emp_id, leave_type, from_date, to_date, reason } = req.body;
 
   try {
-    const employee = await getEmployeeDetails(emp_id);
+    const employee = await findEmpById(emp_id);
+    // console.log(employee);
 
     const leaveCount = employee[leave_type];
+
+    // console.log(leaveCount);
 
     const totalDays =
       Math.ceil(
         (new Date(to_date) - new Date(from_date)) / (1000 * 60 * 60 * 24)
       ) + 1;
+    // console.log(totalDays);
 
     let assignedManagerId, assignedManagerName, leaveStatus;
 
@@ -33,9 +38,10 @@ export const submitLeave = async (req, res) => {
       assignedManagerName = employee.sr_manager_name;
       leaveStatus = "PENDING";
     }
+    // console.log(leaveStatus);
 
     try {
-      await insertLeaveRequest(
+      const insertResult = await insertLeaveRequest(
         emp_id,
         leave_type,
         from_date,
@@ -45,6 +51,14 @@ export const submitLeave = async (req, res) => {
         assignedManagerId,
         totalDays
       );
+
+      if (
+        insertResult.message?.toLowerCase().includes("already exists") ||
+        insertResult.duplicate
+      ) {
+        return res.status(400).send({ error: insertResult.message });
+      }
+
       let remainingLeave = 0;
       if (leaveCount >= totalDays) {
         const updateleave = await updateLeaveBalance(
@@ -54,10 +68,6 @@ export const submitLeave = async (req, res) => {
         );
         remainingLeave = updateleave;
       }
-      const resMsg =
-        leave_type == "sick_leave"
-          ? "leave request approved"
-          : `leave request sent to ${assignedManagerName}`;
 
       const message =
         leaveCount >= totalDays
@@ -79,10 +89,10 @@ export const submitLeave = async (req, res) => {
 };
 
 export const getManagerLeaveRequests = async (req, res) => {
-  const { manager_id } = req.params;
+  const { emp_id } = req.params;
 
   try {
-    const leaveRequests = await getLeaveRequests(manager_id);
+    const leaveRequests = await getLeaveRequests(emp_id);
     if (leaveRequests.length == 0) {
       return res.status(200).json({ message: "No Pending Leave Request" });
     }
@@ -94,11 +104,14 @@ export const getManagerLeaveRequests = async (req, res) => {
 };
 
 export const changeLeaveStatus = async (req, res) => {
-  const { leave_req_id } = req.params;
-  const { newStatus, approver_id, rejection_reason } = req.body;
+  // const { manager_id } = req.params;
+  const { emp_id } = req.params;
+
+  const { newStatus, leave_req_id, rejection_reason } = req.body;
 
   try {
-    const employee = await getEmployeeDetails(approver_id);
+    const employee = await findEmpById({ emp_id });
+
     const approver_name = employee.emp_name;
     // console.log(approver_name);
 
@@ -142,14 +155,29 @@ export const changeLeaveStatus = async (req, res) => {
 };
 
 export const cancelLeave = async (req, res) => {
-  const { leave_req_id } = req.params;
-  const { emp_id } = req.body; // Make sure emp_id is sent from frontend
+  const { emp_id } = req.params;
+  const { leave_req_id } = req.body; // Make sure emp_id is sent from frontend
 
   try {
     const result = await cancelLeaveHelper(leave_req_id, emp_id);
     return res.status(200).json({ message: result });
   } catch (error) {
     console.error("Cancel Error:", error);
+    return res.status(error.code || 500).json({ message: error.message });
+  }
+};
+
+export const checkLeaveBalance = async (req, res) => {
+  const { emp_id } = req.params;
+  // console.log(emp_id);
+
+  try {
+    const result = await leaveBalanceHelper(emp_id);
+    // console.log(result);
+
+    return res.status(200).json({ leavebalance: result });
+  } catch (error) {
+    console.error("leave balance Error:", error);
     return res.status(error.code || 500).json({ message: error.message });
   }
 };

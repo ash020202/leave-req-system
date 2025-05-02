@@ -1,14 +1,20 @@
-import db from "../db/database.js";
-import { bulkInsertEmpHelper, insertEmpHelper } from "../utils/Helper.js";
+// import db from "../db/database.js";
+import { insertEmpHelper } from "../utils/Helper.js";
+import { AppDataSource } from "../db/data-source.js";
+import { Employee } from "../models/Employees.js";
+import logger from "../utils/logger.js";
 
-export const getAllEmployees = (req, res) => {
-  const selectAllEmployee = "SELECT * FROM employees";
-  db.query(selectAllEmployee, (err, results) => {
-    if (err) {
-      console.log("Error Fetching emp", err);
-    }
-    return res.json(results);
-  });
+const getEmployeeRepo = AppDataSource.getRepository(Employee);
+
+export const getAllEmployees = async (req, res) => {
+  try {
+    const employees = await getEmployeeRepo.find();
+    logger.info("success fetching employees");
+    return res.json(employees);
+  } catch (error) {
+    logger.error("Error fetching employees:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 export const insertEmployees = async (req, res) => {
@@ -41,18 +47,37 @@ export const insertEmployees = async (req, res) => {
       earned_leave,
       loss_of_pay
     );
+    logger.info("leave inserted successfully");
     return res.status(200).json({ message: "success inserted" });
   } catch (error) {
+    logger.error("error in insert helper");
     return res.json({ message: "error in insert helper" });
   }
 };
 
-export const bulkInsertEmployees = async (req, res) => {
-  const { employees } = req.body;
+// export const bulkInsertEmployees = async (req, res) => {
+//   const { employees } = req.body;
+//   try {
+//     await bulkInsertEmpHelper(employees);
+//     logger.info("success bulk inserted");
+//     return res.status(200).json({ message: "success bulk inserted" });
+//   } catch (error) {
+//     logger.error("error in bulk insert helper");
+//     return res.json({ message: "error in bulk insert helper" });
+//   }
+// };
+
+export const deleteEmployee = async (req, res) => {
+  const { emp_id } = req.body;
   try {
-    await bulkInsertEmpHelper(employees);
-    return res.status(200).json({ message: "success bulk inserted" });
+    const deleteEmp = await getEmployeeRepo.delete({ emp_id });
+    if (deleteEmp.affected === 0) {
+      throw new Error("Employee not found");
+    }
+    logger.info("delete employee success");
+    return res.status(200).json({ message: `deleted emp id: ${emp_id}` });
   } catch (error) {
-    return res.json({ message: "error in bulk insert helper" });
+    logger.error("error in delete");
+    return res.json({ message: "error in delete" });
   }
 };
